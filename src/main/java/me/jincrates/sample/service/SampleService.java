@@ -1,45 +1,62 @@
 package me.jincrates.sample.service;
 
+import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import me.jincrates.sample.dto.SampleRequest;
-import me.jincrates.sample.dto.SampleResponse;
-import me.jincrates.sample.global.aop.LogExecutionTime;
 import me.jincrates.sample.repository.SampleEntity;
 import me.jincrates.sample.repository.SampleRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-class SampleService implements SampleUseCase {
+public class SampleService {
 
     private final SampleRepository repository;
+    private final EntityManager entityManager;
+    private final JdbcTemplate jdbcTemplate;
 
-    @LogExecutionTime
     @Transactional
-    public List<SampleResponse> saveAll(final List<SampleRequest> request) {
+    public void bulkInsertWithSpringDataJpa(final List<SampleRequest> request) {
         List<SampleEntity> entities = request.stream()
             .map(this::toEntity)
             .toList();
 
-        List<SampleEntity> saved = repository.saveAll(entities);
+        repository.saveAll(entities);
+    }
 
-        return saved.stream()
-            .map(this::toResponse)
+    @Transactional
+    public void bulkInsertWithPureJpa(final List<SampleRequest> request) {
+        List<SampleEntity> entities = request.stream()
+            .map(this::toEntity)
             .toList();
+
+        for (SampleEntity entity : entities) {
+            entityManager.persist(entity);
+        }
+
+        entityManager.flush();
+    }
+
+    @Transactional
+    public void bulkInsertWithJdbc(List<SampleRequest> request) {
+        String sql = "INSERT INTO sample (message) VALUES (?)";
+        jdbcTemplate.batchUpdate(
+            sql,
+            request,
+            request.size(),
+            (ps, item) -> ps.setString(
+                1,
+                item.message()
+            )
+        );
     }
 
     private SampleEntity toEntity(final SampleRequest sample) {
         return SampleEntity.builder()
             .message(sample.message())
-            .build();
-    }
-
-    private SampleResponse toResponse(final SampleEntity sample) {
-        return SampleResponse.builder()
-            .id(sample.getId())
-            .message(sample.getMessage())
             .build();
     }
 }
