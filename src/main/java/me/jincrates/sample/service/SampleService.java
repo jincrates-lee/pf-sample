@@ -42,14 +42,18 @@ public class SampleService {
 
     @Transactional
     public void bulkInsertWithJdbc(List<SampleRequest> request) {
+        List<SampleEntity> entities = request.stream()
+            .map(this::toEntity)
+            .toList();
+
         String sql = "INSERT INTO sample (message) VALUES (?)";
         jdbcTemplate.batchUpdate(
             sql,
-            request,
-            request.size(),
+            entities,
+            entities.size(),
             (ps, item) -> ps.setString(
                 1,
-                item.message()
+                item.getMessage()
             )
         );
     }
